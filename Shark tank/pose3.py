@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Label, Button
+from tkinter import Label, Button, Frame
 import cv2
 from PIL import Image, ImageTk
 import mediapipe as mp
@@ -13,110 +13,130 @@ class ExerciseCorrectionApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Exercise Pose Correction AI Trainer")
+        self.root.geometry("1200x700")
+        self.root.configure(bg="#282C34")
 
-        # Create a Label to display the video feed
-        self.video_label = Label(root)
+        # Initial variables
+        self.exercise = None
+        self.rep_count = 0
+        self.rep_started = False
+        self.paused = False
+
+        # Create a start page
+        self.start_frame = Frame(root, bg="#61AFEF")
+        self.start_frame.pack(fill="both", expand=True)
+        
+        Label(self.start_frame, text="Welcome to the Exercise Pose Correction AI Trainer!",
+              font=("Helvetica", 20), bg="#61AFEF", fg="white").pack(pady=20)
+        Button(self.start_frame, text="Start", font=("Helvetica", 14), bg="#98C379", fg="white",
+               command=self.show_main_page).pack(pady=10)
+        Button(self.start_frame, text="Quit", font=("Helvetica", 14), bg="#E06C75", fg="white",
+               command=self.quit_app).pack(pady=10)
+
+        # Main application page
+        self.main_frame = Frame(root, bg="#282C34")
+        
+        self.video_label = Label(self.main_frame, bg="#282C34")
         self.video_label.pack()
 
-        # Placeholder for feedback label and rep count
-        self.feedback_label = Label(root, text="Select an exercise to start!")
-        self.feedback_label.pack()
-        self.rep_count_label = Label(root, text="Reps: 0")
-        self.rep_count_label.pack()
+        self.feedback_label = Label(self.main_frame, text="Select an exercise to start!",
+                                    font=("Helvetica", 14), bg="#282C34", fg="#61AFEF")
+        self.feedback_label.pack(pady=10)
 
-        # Exercise selection buttons
-        Button(root, text="Squats", command=self.set_exercise_squats).pack(side=tk.LEFT)
-        Button(root, text="Pushups", command=self.set_exercise_pushups).pack(side=tk.LEFT)
-        Button(root, text="Lunges", command=self.set_exercise_lunges).pack(side=tk.LEFT)
-        Button(root, text="Planks", command=self.set_exercise_planks).pack(side=tk.LEFT)
-        Button(root, text="Crunches", command=self.set_exercise_crunches).pack(side=tk.LEFT)
+        self.rep_count_label = Label(self.main_frame, text="Reps: 0", font=("Helvetica", 14),
+                                     bg="#282C34", fg="#98C379")
+        self.rep_count_label.pack(pady=10)
 
-        # Start capturing video
+        self.control_frame = Frame(self.main_frame, bg="#282C34")
+        self.control_frame.pack(pady=20)
+        
+        Button(self.control_frame, text="Squats",width=15,height=2, font=("Helvetica", 12), bg="#61AFEF", fg="white",
+               command=self.set_exercise_squats).pack(side=tk.LEFT, )
+        Button(self.control_frame, text="Pushups",width=15,height=2, font=("Helvetica", 12), bg="#61AFEF", fg="white",
+               command=self.set_exercise_pushups).pack(side=tk.LEFT, )
+        Button(self.control_frame, text="Lunges",width=15,height=2, font=("Helvetica", 12), bg="#61AFEF", fg="white",
+               command=self.set_exercise_lunges).pack(side=tk.LEFT, )
+        Button(self.control_frame, text="Planks",width=15,height=2, font=("Helvetica", 12), bg="#61AFEF", fg="white",
+               command=self.set_exercise_planks).pack(side=tk.LEFT, )
+        Button(self.control_frame, text="Crunches",width=15,height=2, font=("Helvetica", 12), bg="#61AFEF", fg="white",
+               command=self.set_exercise_crunches).pack(side=tk.LEFT, )
+        
+        self.pause_button = Button(self.control_frame, text="Pause",width=15,height=2, font=("Helvetica", 12),
+                                   bg="#E5C07B", fg="white", command=self.toggle_pause)
+        self.pause_button.pack(side=tk.LEFT, )
+        
+        Button(self.control_frame, text="Quit",width=15,height=2, font=("Helvetica", 12), bg="#E06C75", fg="white",
+               command=self.quit_app).pack(side=tk.LEFT,)
+
+        # Start video capture
         self.cap = cv2.VideoCapture(0)
-        self.exercise = None  # Current exercise
-        self.rep_count = 0  # Repetition count
-        self.rep_started = False  # To track if a rep has started
-        self.failed_pushups = 0  # Count of failed pushup attempts
-        self.switch_to_knee_pushups = False  # Flag to switch to knee pushups
-        self.update_video_feed()
 
-        # Close the app when the window is closed
+        # Close app on window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def show_main_page(self):
+        self.start_frame.pack_forget()
+        self.main_frame.pack(fill="both", expand=True)
+        self.update_video_feed()
 
     def set_exercise_squats(self):
         self.exercise = "squats"
-        self.rep_count = 0
-        self.rep_started = False
-        self.feedback_label.config(text="Perform a squat!")
-        self.rep_count_label.config(text="Reps: 0")
+        self.reset()
 
     def set_exercise_pushups(self):
         self.exercise = "pushups"
-        self.rep_count = 0
-        self.rep_started = False
-        self.failed_pushups = 0
-        self.switch_to_knee_pushups = False
-        self.feedback_label.config(text="Perform a pushup!")
-        self.rep_count_label.config(text="Reps: 0")
+        self.reset()
 
     def set_exercise_lunges(self):
         self.exercise = "lunges"
-        self.rep_count = 0
-        self.rep_started = False
-        self.feedback_label.config(text="Perform a lunge!")
-        self.rep_count_label.config(text="Reps: 0")
+        self.reset()
 
     def set_exercise_planks(self):
         self.exercise = "planks"
-        self.rep_count = 0
-        self.rep_started = False
-        self.feedback_label.config(text="Hold the plank position!")
-        self.rep_count_label.config(text="Reps: 0")
+        self.reset()
 
     def set_exercise_crunches(self):
         self.exercise = "crunches"
+        self.reset()
+
+    def reset(self):
         self.rep_count = 0
         self.rep_started = False
-        self.feedback_label.config(text="Perform a crunch!")
+        self.feedback_label.config(text="Perform the exercise!")
         self.rep_count_label.config(text="Reps: 0")
 
+    def toggle_pause(self):
+        self.paused = not self.paused
+        self.pause_button.config(text="Resume" if self.paused else "Pause")
+
     def update_video_feed(self):
-        ret, frame = self.cap.read()
-        if ret:
-            # Convert the frame to RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if not self.paused:
+            ret, frame = self.cap.read()
+            if ret:
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = pose.process(frame_rgb)
 
-            # Process the frame to detect pose
-            results = pose.process(frame_rgb)
+                if results.pose_landmarks:
+                    mp.solutions.drawing_utils.draw_landmarks(
+                        frame_rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
-            if results.pose_landmarks:
-                # Draw pose landmarks
-                mp.solutions.drawing_utils.draw_landmarks(
-                    frame_rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-                # Apply the exercise-specific correction and counting logic
-                if self.exercise == "squats":
-                    self.correct_and_count_squat(results.pose_landmarks)
-                elif self.exercise == "pushups":
-                    if not self.switch_to_knee_pushups:
+                    # Apply exercise-specific logic
+                    if self.exercise == "squats":
+                        self.correct_and_count_squat(results.pose_landmarks)
+                    elif self.exercise == "pushups":
                         self.correct_and_count_pushup(results.pose_landmarks)
-                    else:
-                        self.correct_and_count_knee_pushup(results.pose_landmarks)
-                elif self.exercise == "lunges":
-                    self.correct_and_count_lunge(results.pose_landmarks)
-                elif self.exercise == "planks":
-                    self.correct_and_count_plank(results.pose_landmarks)
-                elif self.exercise == "crunches":
-                    self.correct_and_count_crunch(results.pose_landmarks)
+                    elif self.exercise == "lunges":
+                        self.correct_and_count_lunge(results.pose_landmarks)
+                    elif self.exercise == "planks":
+                        self.correct_and_count_plank(results.pose_landmarks)
+                    elif self.exercise == "crunches":
+                        self.correct_and_count_crunch(results.pose_landmarks)
 
-            # Convert the image to display in Tkinter
-            img = Image.fromarray(frame_rgb)
-            imgtk = ImageTk.PhotoImage(image=img)
+                img = Image.fromarray(frame_rgb)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
 
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-
-        # Repeat after 10 milliseconds
         self.root.after(10, self.update_video_feed)
 
     def correct_and_count_squat(self, landmarks):
@@ -146,31 +166,8 @@ class ExerciseCorrectionApp:
             self.rep_count += 1
             self.rep_started = False
             self.rep_count_label.config(text=f"Reps: {self.rep_count}")
-            self.failed_pushups = 0  # Reset failed pushups count after a successful rep
-        else:
-            self.failed_pushups += 1
 
-        if self.rep_count < 10 and self.failed_pushups >= 3:
-            self.switch_to_knee_pushups = True
-            self.feedback_label.config(text="Switching to knee pushups! Keep going!")
-
-        if not self.switch_to_knee_pushups:
-            self.feedback_label.config(text="Good Pushup!" if 160 < angle < 180 else "Keep your body straight!")
-
-    def correct_and_count_knee_pushup(self, landmarks):
-        shoulder = landmarks.landmark[mp_pose.PoseLandmark.LEFT_SHOULDER]
-        hip = landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP]
-        knee = landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE]
-
-        angle = self.calculate_angle(shoulder, hip, knee)
-        if angle < 90 and not self.rep_started:
-            self.rep_started = True
-        if angle >= 160 and self.rep_started:
-            self.rep_count += 1
-            self.rep_started = False
-            self.rep_count_label.config(text=f"Reps: {self.rep_count}")
-
-        self.feedback_label.config(text="Good Knee Pushup!" if 160 < angle < 180 else "Keep your body straight!")
+        self.feedback_label.config(text="Good Pushup!" if 160 < angle > 180 else "Keep your body straight!")
 
     def correct_and_count_lunge(self, landmarks):
         hip = landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP]
@@ -200,7 +197,7 @@ class ExerciseCorrectionApp:
             self.rep_started = False
             self.rep_count_label.config(text=f"Reps: {self.rep_count}")
 
-        self.feedback_label.config(text="Good Plank!" if 160 < angle < 180 else "Keep your body straight!")
+        self.feedback_label.config(text="Good Plank!" if 160 < angle > 180 else "Keep your body straight!")
 
     def correct_and_count_crunch(self, landmarks):
         shoulder = landmarks.landmark[mp_pose.PoseLandmark.LEFT_SHOULDER]
@@ -230,9 +227,12 @@ class ExerciseCorrectionApp:
 
         return angle
 
-    def on_close(self):
+    def quit_app(self):
         self.cap.release()
         self.root.destroy()
+
+    def on_close(self):
+        self.quit_app()
 
 if __name__ == "__main__":
     root = tk.Tk()
